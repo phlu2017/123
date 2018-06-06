@@ -1,8 +1,69 @@
+<!-- Ref: https://bl.ocks.org/mbostock/4348373 -->
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+        body {
+            font-family: Sans-serif;
+            font-size: 11px;
+        }
+
+        .slice {
+            cursor: pointer;
+        }
+
+        .slice .main-arc {
+            stroke: #fff;
+            stroke-width: 1px;
+        }
+
+        .slice .hidden-arc {
+            fill: none;
+        }
+
+        .slice text {
+            pointer-events: none;
+            dominant-baseline: middle;
+            text-anchor: middle;
+        }
+    </style>
+  <!-- <script src="https://code.jquery.com/jquery-1.12.0.min.js"></script> -->
+  <!-- <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script> -->
+
+  <script src="https://cdn.jsdelivr.net/alasql/0.3/alasql.min.js"></script> 
+  <script src="http://cdnjs.cloudflare.com/ajax/libs/xlsx/0.7.12/xlsx.core.min.js"></script>
+
+<h1>
+  Patent Clustering New
+</h1>
+
+  {% load static %}
+  {% load crispy_forms_tags %}
+  <form data-parsley-validate method='POST' action='' enctype='multipart/form-data'>{% csrf_token %}
+      {% crispy form %}
+  </form>
+
+  {% if respPost %}
+    <br>
+<!--     <button type="button" onclick="sendTree()">Send Your Classification to</button>
+    <input type="text" id="email" placeholder="Email Address" required> -->
+    <!-- <a href="#" class="export">Download Result</a> -->
+    <button type="button" onclick="exportTableToXLSX('PatentClassification.xlsx')">Download Result</button>
+  {% endif %}
+
+
+<!-- <div id='patentTree'></div> -->
+<!-- <script type="text/javascript"> -->
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script>
 var width = 960,
     height = 700,
     maxRadius = (Math.min(width, height) / 2) - 10;
+
+const layerNum = 2;
+//var beginDepth = 0;
+var oriRadius = 0;
+var TweenRaidus = 0;
 
 var formatNumber = d3.format(",d");
 
@@ -14,7 +75,7 @@ const x = d3.scaleLinear()
             .range([0, 2 * Math.PI])
             .clamp(true);
 
-        const y = d3.scaleSqrt()
+        const y = d3.scaleLinear()
             .range([maxRadius*.1, maxRadius]);
 
         const color = d3.scaleOrdinal(d3.schemeCategory20);
@@ -56,9 +117,13 @@ const x = d3.scaleLinear()
             .style('height', '80vh')
             .attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`)
             .on('click', () => focusOn()); // Reset zoom on canvas click
+
 const commandSwitch = true;
+
 const slice = svg.selectAll('g.slice')
                 .data(partition(root).descendants());
+
+            
 
             slice.exit().remove();
 
@@ -66,19 +131,38 @@ const slice = svg.selectAll('g.slice')
                 .append('g').attr('class', 'slice')
                 .on('click', d => {
                     d3.event.stopPropagation();
-                    focusOn(d);
+                    /**
+                    let beginDepth = Number.MAX_SAFE_INTEGER;
+                    for(var )
+                    if(beginDepth>d.depth){
+                        beginDepth = d.depth;
+                    }**/
+                  
+                    focusOn(d, d.depth);    
+                     
                 });
 
             newSlice.append('title')
                 .text(d => d.data.name + '\n' + formatNumber(d.value));
 
+            let maxDepth = 0;
+
+            d3.selectAll('g.slice').attr('depth', d => {
+                    if(d.depth >= maxDepth){
+                        maxDepth = d.depth; 
+                    }
+                    return d.depth;
+                });
+            
             newSlice.append('path')
                 .attr('class', 'main-arc')
-                .style('fill', d => 
-                    
-                    color((d.children ? d : d.parent).data.name)
-                )
-                .attr('d', arc);
+                .style('fill', d => {
+                    //oriRadius += (d.y1-d.y0);
+                    return color((d.children ? d : d.parent).data.name)
+                })
+                .attr('d', arc);//arc);
+            //newSlice.selectAll('')
+
 
             newSlice.append('path')
                 .attr('class', 'hidden-arc')
@@ -102,29 +186,136 @@ const slice = svg.selectAll('g.slice')
                 .attr('startOffset','50%')
                 .attr('xlink:href', (_, i) => `#hiddenArc${i}` )
                 .text(d => d.data.name);
+        //const layerNum = 1;
+        // 
+           // newSlice = slice.enter()
+            //    .append('g').attr('class', 'slice', d => )
 
-        function focusOn(d = { x0: 0, x1: 1, y0: 0, y1: 1 }) {
+        //console.log(layerNum);
+
+        let hiddenArc = d3.arc()
+                        .startAngle(d => x(d.x0))
+                        .endAngle(d => x(d.x1))
+                        .innerRadius(d => 0)
+                        .outerRadius(d => 0);
+
+        let enlargeArc = d3.arc()
+                        .startAngle(d => x(d.x0))
+                        .endAngle(d => x(d.x1))
+                        .innerRadius(d => Math.max(0, y((maxDepth )/layerNum*d.y0)))
+                        .outerRadius(d => Math.max(0, y((maxDepth )/layerNum*d.y1)));
+                        //.innerRadius(d => (maxDepth )/layerNum* Math.max(0, y(d.y0)))
+                        //.outerRadius(d => (maxDepth )/layerNum* Math.max(0, y(d.y1)));
+                        //.innerRadius(d => Math.max(0, y((maxDepth )/layerNum*d.y0)))
+                        //.outerRadius(d => Math.max(0, y((maxDepth )/layerNum*d.y1)));
+        
+        //filter( 0) ;
+
+        function filter( centerDepth ){
+        
+
+            for(var i = 0; i <= maxDepth; i++){
+                //console.log(i);
+                
+                //if(i > layerNum + 1){
+                    d3.select('svg')
+                    .selectAll("[depth='" + i + "']")
+                    .selectAll('path').attr('d', 
+                        i + centerDepth   > layerNum + 0 ? hiddenArc : enlargeArc
+                    );
+                //}
+                /**   i + centerDepth > layerNum  ? hiddenArc : enlargeArc
+                else{
+                     d3.select('svg')
+                    .selectAll("[depth='" + i + "']")
+                    .selectAll('path').attr('d', enlargearc 
+                    );
+                }**/
+                
+                //console.log(hiddenSlices);
+            }
+        }
+        
+
+        /**
+        filter(0, layerNum);
+        function filter( centerDepth, layerNum){
+
+            for(var i = layerNum + 1; i <= maxDepth; i++){
+                let hiddenSlices = d3.selectAll('.slice')
+                    .style("visibility", function(d) {
+                        return (d.depth > i) ? "visible" : "hidden";
+                });
+            console.log(deleteSlices);
+
+            }
+
+        }
+        
+         let hiddenSlices = d3.selectAll('.slice')
+                    .select("[depth='" + i + "']")
+                    .style("visibility", function() {
+                        return (currCircle === clickedCircle) ? "visible" : "hidden";
+                });**/
+            //d3.select("[id='" + i + "']")
+
+        function focusOn(d = { x0: 0, x1: 1, y0: 0, y1: 1 }, beginDepth = 0) {
             // Reset to top-level if no data point specified
+            
 
             const transition = svg.transition()
                 .duration(750)
                 .tween('scale', () => {
-                    const xd = d3.interpolate(x.domain(), [d.x0, d.x1]),
+                    let xd = d3.interpolate(x.domain(), [d.x0, d.x1]),
                         yd = d3.interpolate(y.domain(), [d.y0, 1]);
+                     //console.log('begin = '+beginDepth+" , "+y.domain()+" , "+[d.y0, 1]);
+                    
                     return t => { x.domain(xd(t)); y.domain(yd(t)); };
                 });
-
+            //console.log('trasition: '+test);
             transition.selectAll('path.main-arc')
-                .attrTween('d', d => () => arc(d));
+                .attrTween('d', d => () =>{
+                    //if(d.depth  < layerNum + beginDepth){
+                        let enlargeArc = d3.arc()
+                        .startAngle(d => x(d.x0))
+                        .endAngle(d => x(d.x1))
+                        .innerRadius(d => Math.max(0, y( Math.min( 1.35,maxDepth /Math.min((layerNum+beginDepth), maxDepth))*d.y0)))
+                        .outerRadius(d => Math.max(0, y( Math.min( 1.35 ,maxDepth /Math.min((layerNum+beginDepth),maxDepth))*d.y1)));
+                    //}
+                     return d.depth  > layerNum + beginDepth ? hiddenArc(d) 
+                     : enlargeArc(d); 
+                } );//arc(d));
 
+
+            //transition.selectAll('path.main-arc')
+            //    .attrTween('d', d => () => d.depth  > layerNum + beginDepth ? hiddenArc(d) : arc(d));//arc(d));
             transition.selectAll('path.hidden-arc')
-                .attrTween('d', d => () => middleArcLine(d));
+                .attrTween('d', d => () => {
+                    //if(d.depth  < layerNum + beginDepth){
+                        var enlargeMiddleArcLine = d => {
+                        const halfPi = Math.PI/2;
+                        const angles = [x(d.x0) - halfPi, x(d.x1) - halfPi];
+                        const r = Math.max(0, (y(Math.min( 1.35 ,maxDepth /Math.min((layerNum+beginDepth),maxDepth))*d.y0) + y(Math.min( 1.35 ,maxDepth /Math.min((layerNum+beginDepth),maxDepth))*d.y1)) / 2);
+
+                        const middleAngle = (angles[1] + angles[0]) / 2;
+                        const invertDirection = middleAngle > 0 && middleAngle < Math.PI; // On lower quadrants write text ccw
+                        if (invertDirection) { angles.reverse(); }
+
+                        const path = d3.path();
+                        path.arc(0, 0, r, angles[0], angles[1], invertDirection);
+                        return path.toString();
+                        }
+                    //}
+                    
+                     return d.depth  > layerNum + beginDepth ? hiddenArc(d) 
+                     : enlargeMiddleArcLine(d); 
+                });
 
             transition.selectAll('text')
                 .attrTween('display', d => () => textFits(d) ? null : 'none');
 
             moveStackToFront(d);
-
+            //filter()
             //
 
             function moveStackToFront(elD) {
@@ -136,3 +327,4 @@ const slice = svg.selectAll('g.slice')
             }
         }
 </script>
+{% endblock %}
